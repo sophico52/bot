@@ -192,7 +192,7 @@ async def job(message: types.Message):
 @dp.message(lambda message: message.text == "📚 Специальности колледжа")
 async def all_specialties(message: types.Message):
     text = (
-        "📚 **Специальности нашего колледжа:**\n\n"
+        "📚 Специальности нашего колледжа:\n\n"
         "🔐 Основы информационной безопасности АС\n"
         "💻 Программирование\n"
         "🎨 Веб-дизайн\n"
