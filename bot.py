@@ -1,5 +1,4 @@
 import asyncio
-import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
@@ -89,6 +88,62 @@ def get_result_text(score: int) -> str:
     else:
         return "🔥 Отлично подходит! ОИБ — твоё направление!"
 
+# Система картинок по номеру
+image_urls = {
+    1: "https://cdn.pixabay.com/photo/2016/11/23/14/45/coding-1853305_960_720.jpg",
+    2: "https://picsum.photos/id/1025/960/720",
+    3: "https://picsum.photos/id/1035/960/720"
+}
+
+image_section_map = {
+    "specialty": 1,
+    "job": 2,
+    "test": 3
+}
+
+
+def get_image_url(image_id: int) -> str:
+    return image_urls.get(image_id, image_urls[1])
+
+
+def get_image_id(section: str | int) -> int:
+    if isinstance(section, int):
+        return section if section in image_urls else 1
+    return image_section_map.get(section.lower(), 1)
+
+
+def get_image_id_from_url(url: str) -> int:
+    for image_id, image_url in image_urls.items():
+        if image_url == url:
+            return image_id
+    return 1
+
+
+async def answer_photo_safe(message: types.Message, photo: str, caption: str, reply_markup):
+    try:
+        await message.answer_photo(
+            photo=photo,
+            caption=caption,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return
+    except Exception:
+        fallback_photo = "https://picsum.photos/800/600"
+        try:
+            await message.answer_photo(
+                photo=fallback_photo,
+                caption=caption,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+            return
+        except Exception:
+            pass
+
+    await message.answer(caption, reply_markup=reply_markup, parse_mode="Markdown")
+
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer(
@@ -101,8 +156,9 @@ async def start(message: types.Message):
 
 @dp.message(lambda message: message.text == "📘 Что это за специальность")
 async def info(message: types.Message):
-    await message.answer_photo(
-        photo="https://picsum.photos/800/400",
+    await answer_photo_safe(
+        message,
+        photo=get_image_url(get_image_id("specialty")),
         caption=(
             "🔐 **Основы информационной безопасности АС**\n\n"
             "Ты научишься:\n"
@@ -112,25 +168,25 @@ async def info(message: types.Message):
             "• Работать с криптографией\n\n"
             "🔥 Одна из самых востребованных профессий!"
         ),
-        reply_markup=menu,
-        parse_mode="Markdown"
+        reply_markup=menu
     )
 
 @dp.message(lambda message: message.text == "💼 Где работать")
 async def job(message: types.Message):
-    await message.answer_photo(
-        photo="https://picsum.photos/800/400",
-        caption=(
-            "💼 **Где работать:**\n\n"
-            "• Специалист по ИБ\n"
-            "• Системный администратор\n"
-            "• Аналитик безопасности\n"
-            "• Этичный хакер\n"
-            "• IT-специалист\n\n"
-            "💰 Зарплата: от 80 000 ₽"
-        ),
-        reply_markup=menu,
-        parse_mode="Markdown"
+    caption = (
+        "💼 **Где работать:**\n\n"
+        "• Специалист по ИБ\n"
+        "• Системный администратор\n"
+        "• Аналитик безопасности\n"
+        "• Этичный хакер\n"
+        "• IT-специалист\n\n"
+        "💰 Зарплата: от 80 000 ₽"
+    )
+    await answer_photo_safe(
+        message,
+        photo=get_image_url(get_image_id("job")),
+        caption=caption,
+        reply_markup=menu
     )
 
 @dp.message(lambda message: message.text == "📚 Специальности колледжа")
@@ -148,6 +204,7 @@ async def all_specialties(message: types.Message):
 
 @dp.message(lambda message: message.text == "🧠 Пройти тест")
 async def start_test(message: types.Message):
+    
     user_id = message.from_user.id
     user_scores[user_id] = 0
     user_results[user_id] = []
@@ -163,7 +220,7 @@ async def send_question(chat_id: int, user_id: int):
         return
     question_text, options = questions[index]
     keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=option)] for option in options] + [[KeyboardButton(text="⏪ Главное меню")]],
+        keyboard=[[KeyboardButton(text=option)] for option in options] + [[KeyboardButton(text="В главное меню")]],
         resize_keyboard=True
     )
     await bot.send_message(chat_id, question_text, reply_markup=keyboard)
@@ -174,10 +231,15 @@ async def process_test_answer(message: types.Message):
     state = user_states.get(user_id)
     if state is None:
         return
+    selected = message.text
+    if selected in {"⏪ Главное меню", "В главное меню"}:
+        user_states[user_id] = {"stage": "idle"}
+        await message.answer("Ты вернулся в главное меню.", reply_markup=menu)
+        return
+
     index = state["question_index"]
     if index >= len(questions):
         return
-    selected = message.text
     question_text, options = questions[index]
     if selected not in options:
         await message.answer("Пожалуйста, выбери вариант из клавиатуры.")
@@ -218,7 +280,7 @@ async def show_results(message: types.Message):
         reply_markup=menu_with_result
     )
 
-@dp.message(lambda message: message.text == "⏪ Главное меню")
+@dp.message(lambda message: message.text in {"⏪ Главное меню", "В главное меню"})
 async def back_to_menu(message: types.Message):
     user_id = message.from_user.id
     user_states[user_id] = {"stage": "idle"}
