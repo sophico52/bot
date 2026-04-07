@@ -147,4 +147,4 @@ async def all_specialties(message: types.Message):
 @dp.message(lambda message: message.text == "🧠 Пройти тест")
 async def start_test(message: types.Message):
     user_id = message.from_user.id
-    user_states[user_id] = "taking
+    user_states[user_id] = "taking@"
