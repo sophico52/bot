@@ -102,7 +102,7 @@ async def start(message: types.Message):
 @dp.message(lambda message: message.text == "📘 Что это за специальность")
 async def info(message: types.Message):
     await message.answer_photo(
-        photo="https://cdn.pixabay.com/photo/2016/12/24/23/04/coding-1930337_1280.jpg",
+        photo="https://picsum.photos/800/400",
         caption=(
             "🔐 **Основы информационной безопасности АС**\n\n"
             "Ты научишься:\n"
@@ -112,13 +112,14 @@ async def info(message: types.Message):
             "• Работать с криптографией\n\n"
             "🔥 Одна из самых востребованных профессий!"
         ),
-        reply_markup=menu
+        reply_markup=menu,
+        parse_mode="Markdown"
     )
 
 @dp.message(lambda message: message.text == "💼 Где работать")
 async def job(message: types.Message):
     await message.answer_photo(
-        photo="https://cdn.pixabay.com/photo/2014/05/28/18/15/study-356137_1280.jpg",
+        photo="https://picsum.photos/800/400",
         caption=(
             "💼 **Где работать:**\n\n"
             "• Специалист по ИБ\n"
@@ -128,7 +129,8 @@ async def job(message: types.Message):
             "• IT-специалист\n\n"
             "💰 Зарплата: от 80 000 ₽"
         ),
-        reply_markup=menu
+        reply_markup=menu,
+        parse_mode="Markdown"
     )
 
 @dp.message(lambda message: message.text == "📚 Специальности колледжа")
@@ -147,4 +149,88 @@ async def all_specialties(message: types.Message):
 @dp.message(lambda message: message.text == "🧠 Пройти тест")
 async def start_test(message: types.Message):
     user_id = message.from_user.id
-    user_states[user_id] = "taking@"
+    user_scores[user_id] = 0
+    user_results[user_id] = []
+    user_states[user_id] = {"stage": "test", "question_index": 0}
+    await send_question(message.chat.id, user_id)
+
+async def send_question(chat_id: int, user_id: int):
+    state = user_states.get(user_id)
+    if state is None:
+        return
+    index = state["question_index"]
+    if index >= len(questions):
+        return
+    question_text, options = questions[index]
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=option)] for option in options] + [[KeyboardButton(text="⏪ Главное меню")]],
+        resize_keyboard=True
+    )
+    await bot.send_message(chat_id, question_text, reply_markup=keyboard)
+
+@dp.message(lambda message: user_states.get(message.from_user.id, {}).get("stage") == "test")
+async def process_test_answer(message: types.Message):
+    user_id = message.from_user.id
+    state = user_states.get(user_id)
+    if state is None:
+        return
+    index = state["question_index"]
+    if index >= len(questions):
+        return
+    selected = message.text
+    question_text, options = questions[index]
+    if selected not in options:
+        await message.answer("Пожалуйста, выбери вариант из клавиатуры.")
+        return
+
+    correct_text, points = correct_answers[index]
+    if selected == correct_text:
+        user_scores[user_id] = user_scores.get(user_id, 0) + points
+        feedback = "✅ Правильно!"
+    else:
+        feedback = f"❌ Неправильно. Правильный ответ: {correct_text}"
+
+    user_results[user_id].append(selected)
+    await message.answer(feedback)
+
+    state["question_index"] += 1
+    if state["question_index"] < len(questions):
+        await send_question(message.chat.id, user_id)
+    else:
+        score = user_scores.get(user_id, 0)
+        result_text = get_result_text(score)
+        await message.answer(
+            f"Тест завершён! Ты набрал {score} баллов.\n\n{result_text}",
+            reply_markup=menu_with_result
+        )
+        user_states[user_id] = {"stage": "idle"}
+
+@dp.message(lambda message: message.text == "📊 Мои результаты")
+async def show_results(message: types.Message):
+    user_id = message.from_user.id
+    if user_id not in user_scores:
+        await message.answer("Ты ещё не проходил тест. Нажми «🧠 Пройти тест».", reply_markup=menu)
+        return
+    score = user_scores[user_id]
+    answers = user_results.get(user_id, [])
+    await message.answer(
+        f"Твой результат: {score} баллов.\nОтветы: {', '.join(answers)}",
+        reply_markup=menu_with_result
+    )
+
+@dp.message(lambda message: message.text == "⏪ Главное меню")
+async def back_to_menu(message: types.Message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"stage": "idle"}
+    await message.answer("Ты вернулся в главное меню.", reply_markup=menu)
+
+async def main():
+    try:
+        await dp.start_polling(bot)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        await bot.session.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
