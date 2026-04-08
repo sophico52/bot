@@ -11,7 +11,7 @@ dp = Dispatcher()
 
 user_scores = {}
 user_results = {}
-user_states = {}  # Для отслеживания состояния пользователя
+user_states = {}
 
 # Главное меню
 menu = ReplyKeyboardMarkup(
@@ -39,7 +39,7 @@ menu_with_result = ReplyKeyboardMarkup(
 questions = [
     ("Ты нашел флешку в коридоре колледжа. Твои действия?", [
         "Вставлю в свой комп — вдруг там что-то интересное",
-        "Отнесу преподавателю/потеряшку",
+        "Отнесу преподавателю потеряшку",
         "Выброшу, мало ли вирусы"
     ]),
     ("Придумай пароль для почты. Что выберешь?", [
@@ -69,9 +69,8 @@ questions = [
     ])
 ]
 
-# Правильные ответы и баллы
 correct_answers = {
-    0: ("Отнесу преподавателю/потеряшку", 3),
+    0: ("Отнесу преподавателю потеряшку", 3),
     1: ("Случайную фразу: Красный_чайник_скачет_в_19:43", 3),
     2: ("Включи двухфакторную авторизацию", 3),
     3: ("Чтобы показать, где дыра в защите", 3),
@@ -80,7 +79,6 @@ correct_answers = {
 }
 
 def get_result_text(score: int) -> str:
-    """Возвращает текст результата по количеству баллов"""
     if score <= 5:
         return "🫣 Пока не очень подходит. Присмотрись к другим специальностям колледжа!"
     elif score <= 10:
@@ -88,60 +86,21 @@ def get_result_text(score: int) -> str:
     else:
         return "🔥 Отлично подходит! ОИБ — твоё направление!"
 
-# Система картинок по номеру
 image_urls = {
     1: "https://cdn.pixabay.com/photo/2016/11/23/14/45/coding-1853305_960_720.jpg",
-    2: "https://picsum.photos/id/1025/960/720",
-    3: "https://picsum.photos/id/1035/960/720"
+    2: "https://cdn.pixabay.com/photo/2015/05/29/19/17/study-789631_1280.jpg",
+    3: "https://cdn.pixabay.com/photo/2019/03/08/16/20/monkey-4042658_1280.jpg"
 }
-
-image_section_map = {
-    "specialty": 1,
-    "job": 2,
-    "test": 3
-}
-
 
 def get_image_url(image_id: int) -> str:
     return image_urls.get(image_id, image_urls[1])
 
 
-def get_image_id(section: str | int) -> int:
-    if isinstance(section, int):
-        return section if section in image_urls else 1
-    return image_section_map.get(section.lower(), 1)
-
-
-def get_image_id_from_url(url: str) -> int:
-    for image_id, image_url in image_urls.items():
-        if image_url == url:
-            return image_id
-    return 1
-
-
 async def answer_photo_safe(message: types.Message, photo: str, caption: str, reply_markup):
     try:
-        await message.answer_photo(
-            photo=photo,
-            caption=caption,
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-        return
+        await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
     except Exception:
-        fallback_photo = "https://picsum.photos/800/600"
-        try:
-            await message.answer_photo(
-                photo=fallback_photo,
-                caption=caption,
-                reply_markup=reply_markup,
-                parse_mode="Markdown"
-            )
-            return
-        except Exception:
-            pass
-
-    await message.answer(caption, reply_markup=reply_markup, parse_mode="Markdown")
+        await message.answer(caption, reply_markup=reply_markup)
 
 
 @dp.message(Command("start"))
@@ -154,145 +113,170 @@ async def start(message: types.Message):
         reply_markup=menu
     )
 
+
 @dp.message(lambda message: message.text == "📘 Что это за специальность")
 async def info(message: types.Message):
     await answer_photo_safe(
         message,
-        photo=get_image_url(get_image_id("specialty")),
-        caption=(
-            "🔐 **Основы информационной безопасности АС**\n\n"
+        photo=get_image_url(1),caption=( "🔐 Основы информационной безопасности АС\n\n"
             "Ты научишься:\n"
             "• Защищать сайты и базы данных\n"
             "• Шифровать информацию\n"
             "• Находить уязвимости\n"
             "• Работать с криптографией\n\n"
             "🔥 Одна из самых востребованных профессий!"
-        ),
+                                       ),
         reply_markup=menu
     )
 
+
 @dp.message(lambda message: message.text == "💼 Где работать")
 async def job(message: types.Message):
-    caption = (
-        "💼 **Где работать:**\n\n"
+    await answer_photo_safe(
+        message,
+        photo=get_image_url(2),
+        caption=( "💼 Где работать:\n\n"
         "• Специалист по ИБ\n"
         "• Системный администратор\n"
         "• Аналитик безопасности\n"
         "• Этичный хакер\n"
         "• IT-специалист\n\n"
         "💰 Зарплата: от 80 000 ₽"
-    )
-    await answer_photo_safe(
-        message,
-        photo=get_image_url(get_image_id("job")),
-        caption=caption,
+                ),
         reply_markup=menu
     )
 
+
 @dp.message(lambda message: message.text == "📚 Специальности колледжа")
 async def all_specialties(message: types.Message):
-    text = (
-        "📚 Специальности нашего колледжа:\n\n"
-        "🔐 Основы информационной безопасности АС\n"
-        "💻 Программирование\n"
-        "🎨 Веб-дизайн\n"
-        "🗄️ Администрирование баз данных\n"
-        "🖧 Системный администратор\n\n"
-        "📍 Ждём тебя на дне открытых дверей!"
-    )
-    await message.answer(text, reply_markup=menu)
+    await message.answer( "📚 Специальности нашего колледжа:\n\n"
+        "🔐 Техник по защите информации\n"
+        "🧑‍💻 Специалист по компьютерным системам\n"
+        "🧑‍🏭 Монтаж и техническое обслуживание\n"
+        "📒 Бухгалтер\n"
+        "🏦 Банковское дело\n"
+        "🎨 Веб-разработка\n"
+        "🎮 Разработчик компьютерных игр\n"
+        "🤖 Специалист по работе с ИИ\n"
+        "🚒 Пожарная безопасность\n\n"
+        "✨ Ждём тебя на дне открытых дверей!", reply_markup=menu)
 
+
+# 🔥 Показ картинки перед тестом
 @dp.message(lambda message: message.text == "🧠 Пройти тест")
+async def show_test_start(message: types.Message):
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🚀 Начать тест")],
+            [KeyboardButton(text="В главное меню")]
+        ],
+        resize_keyboard=True
+    )
+
+    await message.answer_photo(
+        photo=get_image_url(3),
+        caption="🐒 Готов проверить себя?\n\nНажми «Начать тест» 👇",
+        reply_markup=keyboard
+    )
+
+
+# 🚀 Старт теста
+@dp.message(lambda message: message.text == "🚀 Начать тест")
 async def start_test(message: types.Message):
-    
     user_id = message.from_user.id
     user_scores[user_id] = 0
     user_results[user_id] = []
     user_states[user_id] = {"stage": "test", "question_index": 0}
+
     await send_question(message.chat.id, user_id)
+
 
 async def send_question(chat_id: int, user_id: int):
     state = user_states.get(user_id)
-    if state is None:
+    if not state:
         return
+
     index = state["question_index"]
+
     if index >= len(questions):
         return
+
     question_text, options = questions[index]
+
     keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=option)] for option in options] + [[KeyboardButton(text="В главное меню")]],
+        keyboard=[[KeyboardButton(text=opt)] for opt in options] + [[KeyboardButton(text="В главное меню")]],
         resize_keyboard=True
     )
+
     await bot.send_message(chat_id, question_text, reply_markup=keyboard)
+
 
 @dp.message(lambda message: user_states.get(message.from_user.id, {}).get("stage") == "test")
 async def process_test_answer(message: types.Message):
     user_id = message.from_user.id
     state = user_states.get(user_id)
-    if state is None:
+
+    if not state:
         return
-    selected = message.text
-    if selected in {"⏪ Главное меню", "В главное меню"}:
+
+    if message.text == "В главное меню":
         user_states[user_id] = {"stage": "idle"}
-        await message.answer("Ты вернулся в главное меню.", reply_markup=menu)
+        await message.answer("Ты вернулся в меню", reply_markup=menu)
         return
 
     index = state["question_index"]
-    if index >= len(questions):
-        return
     question_text, options = questions[index]
-    if selected not in options:
-        await message.answer("Пожалуйста, выбери вариант из клавиатуры.")
+
+    if message.text not in options:
+        await message.answer("Выбери вариант с кнопки")
         return
 
-    correct_text, points = correct_answers[index]
-    if selected == correct_text:
-        user_scores[user_id] = user_scores.get(user_id, 0) + points
-        feedback = "✅ Правильно!"
-    else:
-        feedback = f"❌ Неправильно. Правильный ответ: {correct_text}"
+    user_results[user_id].append(message.text)
 
-    user_results[user_id].append(selected)
-    await message.answer(feedback)
+    # ✅ начисление баллов
+    correct_text, points = correct_answers.get(index, ("", 0))
+    if message.text == correct_text:
+        user_scores[user_id] += points
 
     state["question_index"] += 1
+
     if state["question_index"] < len(questions):
         await send_question(message.chat.id, user_id)
     else:
-        score = user_scores.get(user_id, 0)
+        score = user_scores[user_id]
         result_text = get_result_text(score)
+
         await message.answer(
-            f"Тест завершён! Ты набрал {score} баллов.\n\n{result_text}",
+            f"Тест завершён!\nБаллы: {score}\n\n{result_text}",
             reply_markup=menu_with_result
         )
+
         user_states[user_id] = {"stage": "idle"}
+
 
 @dp.message(lambda message: message.text == "📊 Мои результаты")
 async def show_results(message: types.Message):
     user_id = message.from_user.id
+
     if user_id not in user_scores:
-        await message.answer("Ты ещё не проходил тест. Нажми «🧠 Пройти тест».", reply_markup=menu)
+        await message.answer("Ты ещё не проходил тест", reply_markup=menu)
         return
-    score = user_scores[user_id]
-    answers = user_results.get(user_id, [])
+
     await message.answer(
-        f"Твой результат: {score} баллов.\nОтветы: {', '.join(answers)}",
+        f"Баллы: {user_scores[user_id]}",
         reply_markup=menu_with_result
     )
 
-@dp.message(lambda message: message.text in {"⏪ Главное меню", "В главное меню"})
-async def back_to_menu(message: types.Message):
-    user_id = message.from_user.id
-    user_states[user_id] = {"stage": "idle"}
-    await message.answer("Ты вернулся в главное меню.", reply_markup=menu)
+
+@dp.message(lambda message: message.text == "В главное меню")
+async def back(message: types.Message):
+    user_states[message.from_user.id] = {"stage": "idle"}
+    await message.answer("Главное меню", reply_markup=menu)
+
 
 async def main():
-    try:
-        await dp.start_polling(bot)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await bot.session.close()
+    await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
